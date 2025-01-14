@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FimChat - Chat</title>
+</head>
+<body>
+
+<h1>FimChat - Чат</h1>
+<p>Добро пожаловать, <span id="userSpan"></span>!</p>
+<button id="logoutBtn">Выйти</button>
+<hr/>
+
+<!-- Поле для отправки сообщения -->
+<div>
+  <label for="messageInput">Сообщение:</label>
+  <input id="messageInput" type="text"/>
+  <button id="sendBtn">Отправить</button>
+</div>
+
+<!-- Поле для чата -->
+<div id="chatArea" style="margin-top: 1rem; border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: auto;">
+</div>
+
+<script>
+  // 1) Проверим наличие токена
+  const token = localStorage.getItem('fimchat_token');
+  const username = localStorage.getItem('fimchat_username') || 'anonymous';
+
+  if (!token) {
+    alert('Нет токена — сначала войдите или зарегистрируйтесь!');
+    window.location.href = '/static/index.html';
+  }
+
+  // Выводим username
+  document.getElementById('userSpan').innerText = username;
+
+  // 2) Подключаемся к WebSocket
+  let ws;
+  function connectWebSocket() {
+    // Протокол: "ws://" или "wss://" (зависит от HTTPS)
+    // Для локалки http://127.0.0.1:8000 -> ws://127.0.0.1:8000
+    ws = new WebSocket(`ws://${location.host}/ws?token=${token}&client=${username}`);
+
+    ws.onopen = () => {
+      console.log('WS connected');
+      addChatLine(`System`, `Connected to WebSocket as "${username}"`);
+    };
+
+    ws.onmessage = (event) => {
+      addChatLine('Message', event.data);
+    };
+
+    ws.onclose = (event) => {
+      addChatLine(`System`, `WebSocket closed`);
+    };
+  }
+
+  // 3) Функция для добавления сообщения в чат
+  function addChatLine(author, text) {
+    const chatArea = document.getElementById('chatArea');
+    const p = document.createElement('p');
+    p.innerHTML = `<strong>${author}:</strong> ${text}`;
+    chatArea.appendChild(p);
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  // 4) Обработчик кнопки "Отправить"
+  document.getElementById('sendBtn').onclick = () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      alert('WebSocket не подключён!');
+      return;
+    }
+    const msgInput = document.getElementById('messageInput');
+    const text = msgInput.value.trim();
+    if (!text) return;
+    ws.send(text);
+    msgInput.value = '';
+  };
+
+  // 5) Кнопка "Выйти" — чистит localStorage, закрывает WS и возвращает на index.html
+  document.getElementById('logoutBtn').onclick = () => {
+    localStorage.removeItem('fimchat_token');
+    localStorage.removeItem('fimchat_username');
+    if (ws) ws.close();
+    window.location.href = '/static/index.html';
+  };
+
+  // 6) Подключаемся
+  connectWebSocket();
+</script>
+
+</body>
+</html>

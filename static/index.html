@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FimChat - Welcome</title>
+</head>
+<body>
+
+<h1>Добро пожаловать в FimChat!</h1>
+
+<!-- Форма регистрации -->
+<div>
+  <h2>Регистрация</h2>
+  <label for="reg_username">Username:</label>
+  <input id="reg_username" type="text" />
+  <label for="reg_password">Password:</label>
+  <input id="reg_password" type="password" />
+  <button id="registerBtn">Зарегистрироваться</button>
+</div>
+
+<!-- Форма логина -->
+<div>
+  <h2>Логин</h2>
+  <label for="login_username">Username:</label>
+  <input id="login_username" type="text" />
+  <label for="login_password">Password:</label>
+  <input id="login_password" type="password" />
+  <button id="loginBtn">Войти</button>
+</div>
+
+<script>
+  // --- Регистрация ---
+  document.getElementById('registerBtn').onclick = async () => {
+    const username = document.getElementById('reg_username').value.trim();
+    const password = document.getElementById('reg_password').value.trim();
+    if (!username || !password) {
+      alert("Введите логин и пароль для регистрации.");
+      return;
+    }
+
+    try {
+      const resp = await fetch('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        alert(errData.detail || `Ошибка регистрации (статус ${resp.status})`);
+        return;
+      }
+      const data = await resp.json();
+      alert(`Успешная регистрация! Ваш ID = ${data.id}`);
+    } catch (err) {
+      alert('Ошибка при запросе /auth/register');
+      console.error(err);
+    }
+  };
+
+  // --- Логин ---
+  document.getElementById('loginBtn').onclick = async () => {
+    const username = document.getElementById('login_username').value.trim();
+    const password = document.getElementById('login_password').value.trim();
+    if (!username || !password) {
+      alert("Введите логин и пароль для входа.");
+      return;
+    }
+
+    try {
+      const resp = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        alert(errData.detail || `Ошибка логина (статус ${resp.status})`);
+        return;
+      }
+      const data = await resp.json();
+
+      // Сохраняем токен и username в localStorage
+      localStorage.setItem('fimchat_token', data.access_token);
+      localStorage.setItem('fimchat_username', data.username);
+
+      // Переходим на страницу чата
+      window.location.href = '/static/chat.html';
+    } catch (err) {
+      alert('Ошибка при запросе /auth/login');
+      console.error(err);
+    }
+  };
+</script>
+
+</body>
+</html>
