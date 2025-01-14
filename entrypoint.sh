@@ -2,10 +2,8 @@
 
 set -e
 
-alembic revision --autogenerate -m "Increase password_hash length"
 echo "Applying Alembic migrations..."
-alembic upgrade head
+alembic upgrade head || alembic revision --autogenerate -m "Recreating missing migration" && alembic upgrade head
 
-echo "starting server..."
-
+echo "Starting server..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

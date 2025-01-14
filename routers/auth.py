@@ -1,17 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from passlib.context import CryptContext
-import jwt
-from datetime import datetime, timedelta
-
 from app.database import SessionLocal
-from app.models import User
 from app.schemas import UserRead, UserLogin, UserCreate
-
-from core.config import settings
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.repositories.user import UserRepository
+from app.services.user import UserService
 
 router = APIRouter()
 
@@ -22,54 +14,22 @@ def get_db():
     finally:
         db.close()
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def get_user_service(db: Session = Depends(get_db)) -> UserService:
+    user_repository = UserRepository(db)
+    return UserService(user_repository)
 
 @router.post("/register", response_model=UserRead)
-def register(user_data: UserCreate, db: Session = Depends(get_db)):
-
-    stmt = select(User).where(User.username == user_data.username)
-    existing_user = db.execute(stmt).scalar()
-
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-
-    new_user = User(
-        username=user_data.username,
-        password_hash = get_password_hash(user_data.password)
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return new_user
+def register(user_data: UserCreate, user_service: UserService = Depends(get_user_service)):
+    try:
+        new_user = user_service.register_user(user_data.username, user_data.password)
+        return new_user
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login")
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
-
-    stmt = select(User).where(User.username == user_data.username)
-    user = db.execute(stmt).scalar()
-
-    if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-
-    if not verify_password(user_data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-
-    payload = {
-        "sub": user.username,
-        "exp": datetime.now() + timedelta(hours=6)
-    }
-
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user_id": user.id,
-        "username": user.username
-    }
+def login(user_data: UserLogin, user_service: UserService = Depends(get_user_service)):
+    try:
+        token_data = user_service.authenticate_user(user_data.username, user_data.password)
+        return token_data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
